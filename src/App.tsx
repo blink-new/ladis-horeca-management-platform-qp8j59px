@@ -18,7 +18,7 @@ const routeConfig = [
   { path: '/customers', component: Customers, title: 'Clientes' },
   { path: '/orders', component: Orders, title: 'Pedidos' },
   { path: '/warehouse', component: WarehouseMobile, title: 'Almacén' },
-  { path: '/warehouse/picking', component: PickingQueue, title: 'Cola de Picking' },
+  { path: '/picking-queue', component: PickingQueue, title: 'Cola de Picking' },
   { path: '/purchases', component: Dashboard, title: 'Compras' },
   { path: '/quotes', component: Dashboard, title: 'Presupuestos y Precios' },
   { path: '/suppliers', component: Dashboard, title: 'Proveedores' },

@@ -1,375 +1,419 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Separator } from '@/components/ui/separator'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { supabase } from '@/lib/supabase'
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  Search,
   Package,
-  CheckCircle2,
   Clock,
+  CheckCircle,
   Truck,
-  MapPin,
   FileText,
-  ArrowRight,
   AlertCircle,
-  Zap
+  Calendar,
+  MapPin,
+  User
 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { supabase } from '@/lib/supabase'
 
-interface Pedido {
+interface Order {
   id: string
-  numero_pedido: string
-  cliente_id: string
-  estatus: string
-  fecha_pedido: string
+  cliente: string
   ruta: string
-  notas_pedido: string | null
-  entrega_estimada: string
-  cliente?: {
-    nombre: string
-    direccion: string
-  }
-  lineas_pedido?: LineaPedido[]
-}
-
-interface LineaPedido {
-  id: string
-  producto_id: string
-  cantidad: number
-  picked: boolean
-  producto?: {
-    nombre: string
-    formato: string
-    imagen_url: string
-  }
-}
-
-const statusColors = {
-  'Pendiente': 'bg-orange-100 text-orange-800 border-orange-200',
-  'En Picking': 'bg-blue-100 text-blue-800 border-blue-200',
-  'En Playa': 'bg-purple-100 text-purple-800 border-purple-200',
-  'En Reparto': 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  'Entregado': 'bg-green-100 text-green-800 border-green-200'
-}
-
-const priorityColors = {
-  'urgente': 'bg-red-100 text-red-800 border-red-200',
-  'habitual': 'bg-gray-100 text-gray-800 border-gray-200'
+  estado: string
+  fecha_pedido: string
+  fecha_entrega: string
+  prioridad: string
+  notas: string
+  total_items: number
+  total_articulos: number
 }
 
 export function WarehouseMobile() {
-  const [pedidos, setPedidos] = useState<Pedido[]>([])
-  const [selectedPedidos, setSelectedPedidos] = useState<string[]>([])
+  const [orders, setOrders] = useState<Order[]>([])
+  const [selectedOrders, setSelectedOrders] = useState<string[]>([])
+  const [searchTerm, setSearchTerm] = useState('')
+  const [selectedRoute, setSelectedRoute] = useState('all')
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
 
-  const fetchPedidosPendientes = async () => {
+  const loadOrders = async () => {
     try {
       const { data, error } = await supabase
         .from('pedidos')
         .select(`
           *,
-          clientes:cliente_id (
-            nombre,
-            direccion
-          ),
-          lineas_pedido (
-            *,
-            productos:producto_id (
-              nombre,
-              formato,
-              imagen_url
-            )
-          )
+          clientes(nombre),
+          lineas_pedido(cantidad)
         `)
-        .eq('estatus', 'Pendiente')
-        .order('fecha_pedido', { ascending: true })
+        .order('fecha_pedido', { ascending: false })
 
       if (error) throw error
-      setPedidos(data || [])
+
+      const formattedOrders = data?.map(order => ({
+        id: order.id,
+        cliente: order.clientes?.nombre || 'Cliente desconocido',
+        ruta: order.ruta,
+        estado: order.estado,
+        fecha_pedido: order.fecha_pedido,
+        fecha_entrega: order.fecha_entrega_estimada,
+        prioridad: order.prioridad,
+        notas: order.notas || '',
+        total_items: order.lineas_pedido?.length || 0,
+        total_articulos: order.lineas_pedido?.reduce((sum: number, line: any) => sum + line.cantidad, 0) || 0
+      })) || []
+
+      setOrders(formattedOrders)
     } catch (error) {
-      console.error('Error fetching pedidos:', error)
+      console.error('Error loading orders:', error)
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    fetchPedidosPendientes()
+    loadOrders()
   }, [])
 
-  const handleSelectPedido = (pedidoId: string) => {
-    setSelectedPedidos(prev => 
-      prev.includes(pedidoId) 
-        ? prev.filter(id => id !== pedidoId)
-        : [...prev, pedidoId]
-    )
-  }
-
-  const handleSelectAll = () => {
-    if (selectedPedidos.length === pedidos.length) {
-      setSelectedPedidos([])
+  const handleOrderSelection = (orderId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedOrders([...selectedOrders, orderId])
     } else {
-      setSelectedPedidos(pedidos.map(p => p.id))
+      setSelectedOrders(selectedOrders.filter(id => id !== orderId))
     }
   }
 
-  const handleGenerarPicking = () => {
-    if (selectedPedidos.length === 0) return
-    
-    // Aquí se generaría el PDF de picking
-    console.log('Generando PDF para pedidos:', selectedPedidos)
-    alert(`Generando PDF de picking para ${selectedPedidos.length} pedidos`)
+  const handleSelectAll = (orders: Order[], checked: boolean) => {
+    if (checked) {
+      setSelectedOrders([...selectedOrders, ...orders.map(o => o.id)])
+    } else {
+      const orderIds = orders.map(o => o.id)
+      setSelectedOrders(selectedOrders.filter(id => !orderIds.includes(id)))
+    }
   }
 
-  const handleIniciarPicking = async () => {
-    if (selectedPedidos.length === 0) return
+  const startPicking = async () => {
+    if (selectedOrders.length === 0) return
 
     try {
-      // Actualizar estado de pedidos seleccionados
+      // Actualizar estado de pedidos seleccionados a "En Picking"
       const { error } = await supabase
         .from('pedidos')
-        .update({ estatus: 'En Picking' })
-        .in('id', selectedPedidos)
+        .update({ estado: 'En Picking' })
+        .in('id', selectedOrders)
 
       if (error) throw error
 
-      // Navegar a la cola de picking
-      navigate('/warehouse/picking', { 
-        state: { selectedPedidos } 
+      // Navegar a la cola de picking con los pedidos seleccionados
+      navigate('/picking-queue', { 
+        state: { selectedOrderIds: selectedOrders } 
       })
     } catch (error) {
-      console.error('Error iniciando picking:', error)
+      console.error('Error starting picking:', error)
     }
   }
 
-  const getTotalProductos = (pedido: Pedido) => {
-    return pedido.lineas_pedido?.reduce((total, linea) => total + linea.cantidad, 0) || 0
+  const generatePickingPDF = () => {
+    // Aquí iría la lógica para generar el PDF
+    console.log('Generando PDF para pedidos:', selectedOrders)
+    alert('Funcionalidad de PDF en desarrollo')
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-600">Cargando pedidos...</p>
-        </div>
-      </div>
-    )
+  const getFilteredOrders = (status: string) => {
+    return orders.filter(order => {
+      const matchesStatus = status === 'all' || order.estado === status
+      const matchesSearch = order.cliente.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           order.ruta.toLowerCase().includes(searchTerm.toLowerCase())
+      const matchesRoute = selectedRoute === 'all' || order.ruta === selectedRoute
+      return matchesStatus && matchesSearch && matchesRoute
+    })
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50 pb-20">
-      {/* Header móvil */}
-      <div className="bg-white border-b sticky top-0 z-10">
-        <div className="px-4 py-4">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">Almacén</h1>
-              <p className="text-sm text-gray-600">Pedidos pendientes de picking</p>
-            </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold text-blue-600">{pedidos.length}</div>
-              <div className="text-xs text-gray-500">pedidos</div>
-            </div>
-          </div>
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'Pendiente':
+        return <Clock className="h-4 w-4 text-orange-500" />
+      case 'En Picking':
+        return <Package className="h-4 w-4 text-blue-500" />
+      case 'Preparado':
+        return <CheckCircle className="h-4 w-4 text-green-500" />
+      case 'En Reparto':
+        return <Truck className="h-4 w-4 text-purple-500" />
+      case 'Entregado':
+        return <CheckCircle className="h-4 w-4 text-green-600" />
+      default:
+        return <AlertCircle className="h-4 w-4 text-gray-500" />
+    }
+  }
 
-          {/* Controles de selección */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                checked={selectedPedidos.length === pedidos.length && pedidos.length > 0}
-                onCheckedChange={handleSelectAll}
-                className="data-[state=checked]:bg-blue-600"
-              />
-              <span className="text-sm font-medium">
-                {selectedPedidos.length > 0 
-                  ? `${selectedPedidos.length} seleccionados`
-                  : 'Seleccionar todos'
-                }
-              </span>
-            </div>
-            
-            {selectedPedidos.length > 0 && (
-              <div className="flex space-x-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleGenerarPicking}
-                  className="text-xs"
-                >
-                  <FileText className="h-3 w-3 mr-1" />
-                  PDF
-                </Button>
-              </div>
-            )}
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'Pendiente':
+        return 'bg-orange-100 text-orange-800'
+      case 'En Picking':
+        return 'bg-blue-100 text-blue-800'
+      case 'Preparado':
+        return 'bg-green-100 text-green-800'
+      case 'En Reparto':
+        return 'bg-purple-100 text-purple-800'
+      case 'Entregado':
+        return 'bg-green-100 text-green-800'
+      default:
+        return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const getPriorityColor = (priority: string) => {
+    return priority === 'urgente' 
+      ? 'bg-red-100 text-red-800' 
+      : 'bg-gray-100 text-gray-600'
+  }
+
+  const renderOrdersTable = (filteredOrders: Order[], showSelection: boolean = false) => (
+    <Card>
+      <CardHeader>
+        <CardTitle>Gestión de Pedidos de Almacén</CardTitle>
+        <CardDescription>
+          Selecciona los pedidos para iniciar el proceso de picking
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {/* Filtros */}
+        <div className="flex flex-col sm:flex-row gap-4 mb-6">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Input
+              placeholder="Buscar por cliente o ruta..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
           </div>
+          <Select value={selectedRoute} onValueChange={setSelectedRoute}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Filtrar por ruta" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las rutas</SelectItem>
+              <SelectItem value="Ruta A">Ruta A</SelectItem>
+              <SelectItem value="Ruta B">Ruta B</SelectItem>
+              <SelectItem value="Ruta C">Ruta C</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-      </div>
 
-      {/* Lista de pedidos */}
-      <ScrollArea className="flex-1">
-        <div className="p-4 space-y-3">
-          {pedidos.length === 0 ? (
-            <Card className="text-center py-8">
-              <CardContent>
-                <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  ¡Todo al día!
-                </h3>
-                <p className="text-gray-600">
-                  No hay pedidos pendientes de picking
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            pedidos.map((pedido) => (
-              <Card 
-                key={pedido.id} 
-                className={`transition-all duration-200 ${
-                  selectedPedidos.includes(pedido.id) 
-                    ? 'ring-2 ring-blue-500 bg-blue-50' 
-                    : 'hover:shadow-md'
-                }`}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-start space-x-3">
+        {/* Acciones */}
+        {showSelection && selectedOrders.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-4 p-4 bg-blue-50 rounded-lg">
+            <Button 
+              onClick={startPicking}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Package className="mr-2 h-4 w-4" />
+              Iniciar Picking ({selectedOrders.length})
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={generatePickingPDF}
+            >
+              <FileText className="mr-2 h-4 w-4" />
+              Generar PDF
+            </Button>
+          </div>
+        )}
+
+        {/* Tabla */}
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                {showSelection && (
+                  <TableHead className="w-12">
                     <Checkbox
-                      checked={selectedPedidos.includes(pedido.id)}
-                      onCheckedChange={() => handleSelectPedido(pedido.id)}
-                      className="mt-1 data-[state=checked]:bg-blue-600"
+                      checked={filteredOrders.length > 0 && filteredOrders.every(order => selectedOrders.includes(order.id))}
+                      onCheckedChange={(checked) => handleSelectAll(filteredOrders, checked as boolean)}
                     />
-                    
-                    <div className="flex-1 min-w-0">
-                      {/* Header del pedido */}
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center space-x-2">
-                          <span className="font-mono text-sm font-bold text-gray-900">
-                            {pedido.numero_pedido}
-                          </span>
-                          <Badge className={priorityColors[pedido.entrega_estimada as keyof typeof priorityColors]}>
-                            {pedido.entrega_estimada === 'urgente' ? (
-                              <Zap className="h-3 w-3 mr-1" />
-                            ) : (
-                              <Clock className="h-3 w-3 mr-1" />
-                            )}
-                            {pedido.entrega_estimada}
-                          </Badge>
-                        </div>
-                        <Badge className={statusColors[pedido.estatus as keyof typeof statusColors]}>
-                          {pedido.estatus}
-                        </Badge>
-                      </div>
-
-                      {/* Cliente y ruta */}
-                      <div className="mb-3">
-                        <h3 className="font-medium text-gray-900 mb-1">
-                          {pedido.cliente?.nombre}
-                        </h3>
-                        <div className="flex items-center text-sm text-gray-600 mb-1">
-                          <MapPin className="h-3 w-3 mr-1" />
-                          <span className="truncate">{pedido.cliente?.direccion}</span>
-                        </div>
-                        <div className="flex items-center text-sm text-gray-600">
-                          <Truck className="h-3 w-3 mr-1" />
-                          <span>{pedido.ruta}</span>
-                        </div>
-                      </div>
-
-                      {/* Productos */}
-                      <div className="bg-gray-50 rounded-lg p-3 mb-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium text-gray-700">
-                            Productos
-                          </span>
-                          <span className="text-sm font-bold text-blue-600">
-                            {getTotalProductos(pedido)} unidades
-                          </span>
-                        </div>
-                        
-                        <div className="space-y-2">
-                          {pedido.lineas_pedido?.slice(0, 3).map((linea) => (
-                            <div key={linea.id} className="flex items-center space-x-2">
-                              <div className="w-8 h-8 bg-white rounded border flex items-center justify-center">
-                                {linea.producto?.imagen_url ? (
-                                  <img 
-                                    src={linea.producto.imagen_url} 
-                                    alt={linea.producto.nombre}
-                                    className="w-6 h-6 object-cover rounded"
-                                  />
-                                ) : (
-                                  <Package className="h-4 w-4 text-gray-400" />
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-900 truncate">
-                                  {linea.producto?.nombre}
-                                </p>
-                                <p className="text-xs text-gray-500">
-                                  {linea.producto?.formato}
-                                </p>
-                              </div>
-                              <div className="text-sm font-bold text-gray-900">
-                                {linea.cantidad}
-                              </div>
-                            </div>
-                          ))}
-                          
-                          {(pedido.lineas_pedido?.length || 0) > 3 && (
-                            <div className="text-xs text-gray-500 text-center pt-1">
-                              +{(pedido.lineas_pedido?.length || 0) - 3} productos más
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Notas */}
-                      {pedido.notas_pedido && (
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2">
-                          <div className="flex items-start space-x-2">
-                            <AlertCircle className="h-4 w-4 text-yellow-600 mt-0.5 flex-shrink-0" />
-                            <p className="text-sm text-yellow-800">
-                              {pedido.notas_pedido}
-                            </p>
+                  </TableHead>
+                )}
+                <TableHead>Cliente</TableHead>
+                <TableHead>Ruta</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead>Items</TableHead>
+                <TableHead>Artículos</TableHead>
+                <TableHead>Entrega</TableHead>
+                <TableHead>Prioridad</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={showSelection ? 8 : 7} className="text-center py-8">
+                    Cargando pedidos...
+                  </TableCell>
+                </TableRow>
+              ) : filteredOrders.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={showSelection ? 8 : 7} className="text-center py-8 text-gray-500">
+                    No hay pedidos que mostrar
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredOrders.map((order) => (
+                  <TableRow key={order.id} className="hover:bg-gray-50">
+                    {showSelection && (
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedOrders.includes(order.id)}
+                          onCheckedChange={(checked) => handleOrderSelection(order.id, checked as boolean)}
+                        />
+                      </TableCell>
+                    )}
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <User className="h-4 w-4 text-gray-400" />
+                        <div>
+                          <div className="font-medium">{order.cliente}</div>
+                          <div className="text-xs text-gray-500">
+                            {new Date(order.fecha_pedido).toLocaleDateString('es-ES')}
                           </div>
                         </div>
-                      )}
-
-                      {/* Fecha */}
-                      <div className="text-xs text-gray-500 mt-2">
-                        Pedido: {new Date(pedido.fecha_pedido).toLocaleDateString('es-ES', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
                       </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-1">
+                        <MapPin className="h-3 w-3 text-gray-400" />
+                        <span className="text-sm font-medium">{order.ruta}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        {getStatusIcon(order.estado)}
+                        <Badge className={`text-xs ${getStatusColor(order.estado)}`}>
+                          {order.estado}
+                        </Badge>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center font-medium">
+                      {order.total_items}
+                    </TableCell>
+                    <TableCell className="text-center font-medium">
+                      {order.total_articulos}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-1">
+                        <Calendar className="h-3 w-3 text-gray-400" />
+                        <span className="text-sm">
+                          {new Date(order.fecha_entrega).toLocaleDateString('es-ES')}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={`text-xs ${getPriorityColor(order.prioridad)}`}>
+                        {order.prioridad}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
         </div>
-      </ScrollArea>
+      </CardContent>
+    </Card>
+  )
 
-      {/* Botón flotante para iniciar picking */}
-      {selectedPedidos.length > 0 && (
-        <div className="fixed bottom-6 left-4 right-4 z-20">
-          <Button
-            onClick={handleIniciarPicking}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 text-lg font-medium shadow-lg"
-            size="lg"
-          >
-            <ArrowRight className="h-5 w-5 mr-2" />
-            Iniciar Picking ({selectedPedidos.length})
-          </Button>
-        </div>
-      )}
+  // Estadísticas por estado
+  const pendingOrders = orders.filter(o => o.estado === 'Pendiente')
+  const pickingOrders = orders.filter(o => o.estado === 'En Picking')
+  const readyOrders = orders.filter(o => o.estado === 'Preparado')
+
+  return (
+    <div className="space-y-6">
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pedidos Pendientes</CardTitle>
+            <Clock className="h-4 w-4 text-orange-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600">{pendingOrders.length}</div>
+            <p className="text-xs text-muted-foreground">Por procesar</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">En Picking</CardTitle>
+            <Package className="h-4 w-4 text-blue-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">{pickingOrders.length}</div>
+            <p className="text-xs text-muted-foreground">En proceso</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Preparados</CardTitle>
+            <CheckCircle className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{readyOrders.length}</div>
+            <p className="text-xs text-muted-foreground">Listos para envío</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Artículos Pendientes</CardTitle>
+            <AlertCircle className="h-4 w-4 text-red-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {pendingOrders.reduce((sum, order) => sum + order.total_articulos, 0)}
+            </div>
+            <p className="text-xs text-muted-foreground">Por pickear</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Main Content with Tabs */}
+      <Tabs defaultValue="pending" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="pending">Pendientes</TabsTrigger>
+          <TabsTrigger value="picking">En Picking</TabsTrigger>
+          <TabsTrigger value="ready">Preparados</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="pending" className="space-y-4">
+          {renderOrdersTable(getFilteredOrders('Pendiente'), true)}
+        </TabsContent>
+
+        <TabsContent value="picking" className="space-y-4">
+          {renderOrdersTable(getFilteredOrders('En Picking'), false)}
+        </TabsContent>
+
+        <TabsContent value="ready" className="space-y-4">
+          {renderOrdersTable(getFilteredOrders('Preparado'), false)}
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
