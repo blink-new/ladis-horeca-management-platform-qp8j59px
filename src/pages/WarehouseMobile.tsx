@@ -418,6 +418,16 @@ export function WarehouseMobile() {
         </TabsContent>
 
         <TabsContent value="picking" className="space-y-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium">Pedidos en Picking</h3>
+            <Button 
+              onClick={() => navigate('/picking-mobile')}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Package className="h-4 w-4 mr-2" />
+              Vista de Picking
+            </Button>
+          </div>
           {renderOrdersTable(getFilteredOrders('En Picking'), false)}
         </TabsContent>
 

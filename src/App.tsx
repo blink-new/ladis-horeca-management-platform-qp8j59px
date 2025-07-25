@@ -8,6 +8,7 @@ import { Orders } from '@/pages/Orders'
 import { Warehouse } from '@/pages/Warehouse'
 import { WarehouseMobile } from '@/pages/WarehouseMobile'
 import { PickingQueue } from '@/pages/PickingQueue'
+import PickingMobile from '@/pages/PickingMobile'
 import { Invoicing } from '@/pages/Invoicing'
 import { Accounting } from '@/pages/Accounting'
 import { Toaster } from '@/components/ui/toaster'
@@ -19,6 +20,7 @@ const routeConfig = [
   { path: '/orders', component: Orders, title: 'Pedidos' },
   { path: '/warehouse', component: WarehouseMobile, title: 'Almacén' },
   { path: '/picking-queue', component: PickingQueue, title: 'Cola de Picking' },
+  { path: '/picking-mobile', component: PickingMobile, title: 'Picking Móvil' },
   { path: '/purchases', component: Dashboard, title: 'Compras' },
   { path: '/quotes', component: Dashboard, title: 'Presupuestos y Precios' },
   { path: '/suppliers', component: Dashboard, title: 'Proveedores' },
