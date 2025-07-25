@@ -69,18 +69,29 @@ export function WarehouseMobile() {
 
       if (error) throw error
 
-      const formattedOrders = data?.map(order => ({
-        id: order.id,
-        cliente: order.clientes?.nombre || 'Cliente desconocido',
-        ruta: order.ruta,
-        estado: order.estado,
-        fecha_pedido: order.fecha_pedido,
-        fecha_entrega: order.fecha_entrega_estimada,
-        prioridad: order.prioridad,
-        notas: order.notas || '',
-        total_items: order.lineas_pedido?.length || 0,
-        total_articulos: order.lineas_pedido?.reduce((sum: number, line: any) => sum + line.cantidad, 0) || 0
-      })) || []
+      const formattedOrders = data?.map(order => {
+        // Calcular fecha de entrega basada en prioridad
+        const fechaPedido = new Date(order.fecha_pedido)
+        const fechaEntrega = new Date(fechaPedido)
+        if (order.entrega_estimada === 'urgente') {
+          fechaEntrega.setDate(fechaEntrega.getDate() + 1) // Entrega al día siguiente
+        } else {
+          fechaEntrega.setDate(fechaEntrega.getDate() + 3) // Entrega en 3 días
+        }
+
+        return {
+          id: order.id,
+          cliente: order.clientes?.nombre || 'Cliente desconocido',
+          ruta: order.ruta,
+          estado: order.estatus,
+          fecha_pedido: order.fecha_pedido,
+          fecha_entrega: fechaEntrega.toISOString(),
+          prioridad: order.entrega_estimada, // 'urgente' o 'habitual'
+          notas: order.notas_pedido || '',
+          total_items: order.lineas_pedido?.length || 0,
+          total_articulos: order.lineas_pedido?.reduce((sum: number, line: any) => sum + line.cantidad, 0) || 0
+        }
+      }) || []
 
       setOrders(formattedOrders)
     } catch (error) {
@@ -118,7 +129,7 @@ export function WarehouseMobile() {
       // Actualizar estado de pedidos seleccionados a "En Picking"
       const { error } = await supabase
         .from('pedidos')
-        .update({ estado: 'En Picking' })
+        .update({ estatus: 'En Picking' })
         .in('id', selectedOrders)
 
       if (error) throw error
